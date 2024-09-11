@@ -2,8 +2,12 @@ const {writeFile} = require("node:fs/promises");
 const cheerio = require("cheerio"); // ^1.0.0-rc.12
 const Papa = require("papaparse"); // ^5.4.1
 
+const ua =
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+
 const get = url =>
-  fetch(url).then(res => {
+  fetch(url, {headers: {"User-Agent": ua}})
+  .then(res => {
     if (!res.ok) {
       throw Error(res.statusText);
     }
@@ -17,14 +21,19 @@ const get = url =>
   const $ = cheerio.load(html);
   const data = [];
 
-  for (const e of [...$(".post")].slice(0, 3)) {
+  for (const e of [...$(".post")]) {
     const href = $(e)
       .find(":scope .post-card__image-link")
       .attr("href");
-    const post = await get(baseUrl + href);
-    data.push({
-      date: $(e).find(".post-card__date").text(),
-      name: $(e).find(".post-card__title").text(),
+    const postHTML = await get(baseUrl + href);
+    const preliminaryRow = {
+      prettyDate: $(e).find(".post-card__date").text(),
+      title: $(e).find(".post-card__title").text(),
+      href: baseUrl + href,
+      thumbnail: $(e).find(".post-card__image").attr("src"),
+      length: $(e).find(".post-card__min-read").text(),
+      excerpt: $(e).find(".post-card__excerpt .markdown").text(),
+      collection: $(e).find(".post-card__tags").text(),
       slug: $(e)
         .find(".post-card__content-link")
         .attr("href")
@@ -32,15 +41,60 @@ const get = url =>
         .pop(),
       author: $(e).find(".post-card__author-name").text(),
       href: baseUrl + href,
-      tag: $(e).find(".post-card__tags").text(),
+      htmlContent: cheerio
+        .load(postHTML)(".markdown, .richtext")
+        .html(),
+    };
+    const match = postHTML.match(
+      /__INITIAL_STATE__=(.*);\(function/
+    )?.[1];
+
+    if (!match) {
+      // For some reason, one post doesn't have a
+      // data payload, so scrape the document
+      data.push({
+        ...preliminaryRow,
+        tags: null,
+        body: null,
+        richBody: null,
+        description: null,
+        hideHero: true,
+        publishDate: new Date(preliminaryRow.prettyDate).toISOString(),
+      });
+      // console.log(data)
+      continue;
+    }
+
+    const {
+      data: {post},
+    } = JSON.parse(match);
+    console.log(JSON.stringify(post, null, 2));
+    const row = {
+      prettyDate: $(e).find(".post-card__date").text(),
+      href: baseUrl + href,
       thumbnail: $(e).find(".post-card__image").attr("src"),
       length: $(e).find(".post-card__min-read").text(),
       excerpt: $(e).find(".post-card__excerpt .markdown").text(),
-      content: cheerio.load(post)(".markdown, .richtext").html(),
-    });
+      htmlContent: cheerio
+        .load(postHTML)(".markdown, .richtext")
+        .html(),
+      ...post,
+      richBody: JSON.stringify(post.richBody),
+      author: post.author?.name,
+      collection: post.collection.title,
+      tags: post.tags.join(";"),
+      heroImage: post.file,
+      parent: undefined,
+      prev: undefined,
+      next: undefined,
+    };
+    delete row.parent;
+    delete row.prev;
+    delete row.next;
+    data.push(row);
   }
 
-  console.log(data);
-  return writeFile("qualified-blog.json", JSON.stringify(data));
-  return writeFile("qualified-blog.csv", Papa.unparse(data));
+  // console.log(data);
+  await writeFile("qualified-blog.json", JSON.stringify(data));
+  await writeFile("qualified-blog.csv", Papa.unparse(data));
 })().catch(err => console.error(err));

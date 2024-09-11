@@ -58,8 +58,10 @@ const get = url =>
         body: null,
         richBody: null,
         description: null,
-        hideHero: true,
-        publishDate: new Date(preliminaryRow.prettyDate).toISOString(),
+        hideHero: null,
+        publishDate: new Date(
+          preliminaryRow.prettyDate
+        ).toISOString(),
       });
       // console.log(data)
       continue;
@@ -70,19 +72,14 @@ const get = url =>
     } = JSON.parse(match);
     console.log(JSON.stringify(post, null, 2));
     const row = {
-      prettyDate: $(e).find(".post-card__date").text(),
-      href: baseUrl + href,
-      thumbnail: $(e).find(".post-card__image").attr("src"),
-      length: $(e).find(".post-card__min-read").text(),
-      excerpt: $(e).find(".post-card__excerpt .markdown").text(),
-      htmlContent: cheerio
-        .load(postHTML)(".markdown, .richtext")
-        .html(),
+      ...preliminaryRow,
       ...post,
-      richBody: JSON.stringify(post.richBody),
+      richBody: post.richBody
+        ? JSON.stringify(post.richBody)
+        : null,
       author: post.author?.name,
       collection: post.collection.title,
-      tags: post.tags.join(";"),
+      tags: post.tags.join(";") || null,
       heroImage: post.file,
       parent: undefined,
       prev: undefined,

@@ -1,0 +1,14 @@
+{
+  "name": "qualified blog scraper",
+  "version": "1.0.0",
+  "description": "scrapes the qualified.io blog",
+  "author": "ggorlen",
+  "scripts": {
+    "start": "node scrape"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "papaparse": "^5.4.1"
+  }
+}
